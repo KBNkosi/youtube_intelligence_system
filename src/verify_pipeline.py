@@ -1,13 +1,17 @@
+import json
+from datetime import datetime, timezone
+
 import pandas as pd
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
-from youtube_transcript_api import YouTubeTranscriptApi
+from googleapiclient.errors import HttpError
 from googleapiclient.discovery import build
 from google_auth_oauthlib.flow import InstalledAppFlow
 
 from youtube_intelligence_system.config import (
     CLIENT_SECRET_PATH,
     END_DATE,
+    PHASE_2_RESULT_PATH,
     START_DATE,
     TOKEN_PATH,
     VIDEO_ID,
@@ -47,78 +51,132 @@ def get_authenticated_service():
     analytics_api = build("youtubeAnalytics", "v2", credentials=credentials)
     return data_api, analytics_api
 
-def run_test():
+
+def describe_api_error(error):
+    """Return safe, structured information about a Google API failure."""
+    details = {
+        "error_type": type(error).__name__,
+        "status_code": None,
+        "reason": str(error),
+    }
+    if isinstance(error, HttpError):
+        details["status_code"] = error.resp.status
+    return details
+
+
+def write_phase_2_result(result):
+    PHASE_2_RESULT_PATH.write_text(
+        json.dumps(result, indent=2), encoding="utf-8"
+    )
+
+
+def run_phase_2_access_check():
     validate_configuration()
     ensure_runtime_directories()
-    print("Initiating Secure Authorization Flow...")
-    data_api, analytics_api = get_authenticated_service()
+    result = {
+        "run_at": datetime.now(timezone.utc).isoformat(),
+        "video_id": VIDEO_ID,
+        "start_date": START_DATE,
+        "end_date": END_DATE,
+        "access_mode": "channel",
+        "oauth": {"status": "not_started"},
+        "authenticated_channel": {"status": "not_checked"},
+        "video": {"status": "not_checked"},
+        "analytics": {"status": "not_checked", "channel_mine": "not_checked"},
+        "classification": "UNKNOWN",
+    }
 
-    # ------ 1. EXTRACT DATA API METRICS & DURATION -----
-    print("Query public Data API for duration metrics...")
-    video_response = data_api.videos().list(part="contentDetails", id=VIDEO_ID).execute()
-
-    # Check if the video exists and if the user has permission to access it
-    if not video_response["items"]:
-        print(f"No video found with ID: {VIDEO_ID} or you lack permission")
-        return
-
-    # Extract the ISO 8601 duration and convert it to total seconds
-    iso_duration = video_response["items"][0]["contentDetails"]["duration"]
-    total_seconds = int(pd.to_timedelta(iso_duration).total_seconds())
-    print(f"Video Length Confirmed: {total_seconds} seconds")
-
-
-    # ------ 2. EXTRACT TRANSCRIPT TIMESTAMPS -----
-    print("Pulling timestamp content transcript data...")
+    print("Initiating read-only OAuth authorization...")
     try:
-        transcript_api = YouTubeTranscriptApi()
-        transcript = transcript_api.fetch(VIDEO_ID)
-        raw_transcript = transcript.to_raw_data()
-        df_transcript = pd.DataFrame(raw_transcript)
-        df_transcript["end"] = df_transcript["start"] + df_transcript["duration"]
-        print(f"Extracted {len(df_transcript)} text segments successfully.")
-    except Exception as e:
-        print(f"Transcript failure (Ensure captions are enabled): {e}")
+        data_api, analytics_api = get_authenticated_service()
+        result["oauth"] = {"status": "CONFIRMED", "scopes": SCOPES}
+    except Exception as error:
+        result["oauth"] = {"status": "UNAVAILABLE", "error": describe_api_error(error)}
+        result["classification"] = "UNAVAILABLE"
+        write_phase_2_result(result)
+        print(f"OAuth failed; result saved to {PHASE_2_RESULT_PATH}")
         return
 
+    print("Checking the authenticated channel...")
+    try:
+        channel_response = data_api.channels().list(part="id,snippet", mine=True).execute()
+        channels = channel_response.get("items", [])
+        if len(channels) != 1:
+            result["authenticated_channel"] = {
+                "status": "UNKNOWN",
+                "count": len(channels),
+            }
+        else:
+            channel = channels[0]
+            result["authenticated_channel"] = {
+                "status": "CONFIRMED",
+                "id": channel.get("id"),
+                "title": channel.get("snippet", {}).get("title"),
+            }
+    except Exception as error:
+        result["authenticated_channel"] = {
+            "status": "UNAVAILABLE",
+            "error": describe_api_error(error),
+        }
 
-    # ----- 3. EXTRACT PRIVATE RETENTION TIMELINE -----
-    print("Querying Analytics API for audience retention time-series data...")
-    analytics_response = analytics_api.reports().query(
-        ids="channel==MINE",
-        startDate=START_DATE,
-        endDate=END_DATE,
-        metrics="audienceWatchRatio",
-        dimensions="elapsedVideoTimeRatio",
-        filters=f"video=={VIDEO_ID}",
-    ).execute()
+    print(f"Checking access to video {VIDEO_ID}...")
+    try:
+        video_response = data_api.videos().list(
+            part="contentDetails,snippet", id=VIDEO_ID
+        ).execute()
+        videos = video_response.get("items", [])
+        if len(videos) != 1:
+            result["video"] = {"status": "UNAVAILABLE", "count": len(videos)}
+        else:
+            video = videos[0]
+            result["video"] = {
+                "status": "CONFIRMED",
+                "id": video.get("id"),
+                "title": video.get("snippet", {}).get("title"),
+                "channel_id": video.get("snippet", {}).get("channelId"),
+                "channel_title": video.get("snippet", {}).get("channelTitle"),
+                "duration": video.get("contentDetails", {}).get("duration"),
+            }
+    except Exception as error:
+        result["video"] = {"status": "UNAVAILABLE", "error": describe_api_error(error)}
 
-    retention_rows = analytics_response.get("rows", [])
-    if not retention_rows:
-        print("Error: No retention data found for the specified video.")
-        return
+    authenticated_id = result["authenticated_channel"].get("id")
+    video_channel_id = result["video"].get("channel_id")
+    result["channel_video_relationship"] = {
+        "status": "CONFIRMED" if authenticated_id == video_channel_id else "CONDITIONAL",
+        "authenticated_channel_id": authenticated_id,
+        "video_channel_id": video_channel_id,
+    }
 
-    df_retention = pd.DataFrame(retention_rows, columns=["ratio", "retention_pct"])
-    print(f"Extracted {len(df_retention)} normalized performance data intervals.")
+    print("Querying Analytics retention data with channel==MINE...")
+    try:
+        analytics_response = analytics_api.reports().query(
+            ids="channel==MINE",
+            startDate=START_DATE,
+            endDate=END_DATE,
+            metrics="audienceWatchRatio",
+            dimensions="elapsedVideoTimeRatio",
+            filters=f"video=={VIDEO_ID}",
+        ).execute()
+        rows = analytics_response.get("rows", [])
+        result["analytics"] = {
+            "status": "CONFIRMED" if rows else "UNKNOWN",
+            "channel_mine": "CONFIRMED",
+            "row_count": len(rows),
+        }
+        result["classification"] = "CONFIRMED" if rows else "UNKNOWN"
+    except Exception as error:
+        result["analytics"] = {
+            "status": "UNAVAILABLE",
+            "channel_mine": "UNAVAILABLE",
+            "error": describe_api_error(error),
+        }
+        result["classification"] = "UNAVAILABLE"
 
-    # ----- 4. RE-SCALING ALIGNMENT -----
-    print("Mapping transcript timestamps to retention data intervals...")
-    df_retention["calculated_seconds"] = df_retention["ratio"] * total_seconds
-
-    def locate_transcript_text(sec):
-        """
-        Locate the transcript text corresponding to a given second.
-        """
-        match = df_transcript[(df_transcript["start"] <= sec) & (df_transcript["end"] >= sec)]
-        return match["text"].values if not match.empty else "[No Transcript Available]"
-
-    df_retention["aligned_content"] = df_retention["calculated_seconds"].apply(locate_transcript_text)
-
-    # ----- 5. OUTPUT RESULTS -----
-    print("\n --- Final Output ---")
-    for index, row in df_retention.iloc[::10].iterrows():  # Displaying only the first 10 rows for brevity
-        print(f"Time: {row['calculated_seconds']:>6.1f}s | Retention: {row['retention_pct']*100:>5.1f}% | Script: \"{row['aligned_content']}\"")
+    write_phase_2_result(result)
+    print(f"Phase 2 result saved to {PHASE_2_RESULT_PATH}")
+    print(f"Access classification: {result['classification']}")
 
 
 if __name__ == "__main__":
-    run_test()
+    run_phase_2_access_check()

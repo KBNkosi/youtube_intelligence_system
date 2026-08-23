@@ -2,9 +2,9 @@
 
 | ID | Type | Statement | Status | Impact |
 |---|---|---|---|---|
-| R-001 | Risk | Required retention data may not be accessible | Open | Critical |
+| R-001 | Risk | Required retention data may not be accessible | Conditional; current video has approximately 8 views and YouTube Studio reports insufficient viewer data | Critical |
 | R-002 | Risk | Retention resolution may be insufficient for content alignment | Open | Critical |
-| R-003 | Risk | SEM may not be able to provide the required API access | Open | Critical |
+| R-003 | Risk | SEM may not be able to provide the required API access | Not tested; SEM access intentionally out of scope | Critical |
 | R-004 | Assumption | Transcript data can be obtained reliably | Unverified | High |
 | R-005 | Assumption | Content characteristics can be measured meaningfully | Unverified | High |
 | R-006 | Risk | Identified patterns may not produce actionable insights | Open | Critical |

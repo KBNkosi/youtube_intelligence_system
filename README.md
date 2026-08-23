@@ -21,7 +21,7 @@ uv sync --dev
 The experiment is limited to the configured video and date range in
 `src/youtube_intelligence_system/config.py`.
 
-Run the verification script from the repository root with:
+Run the Phase 2 access verification from the repository root with:
 
 ```text
 uv run python src/verify_pipeline.py
@@ -32,6 +32,7 @@ current working directory does not determine where credentials are found.
 The first run opens the read-only OAuth flow. The resulting token is stored
 under `runtime/oauth/` and reused or refreshed on later runs.
 
-Local raw evidence belongs in `data/raw/`; generated outputs belong in
+The sanitized Phase 2 access result is written to
+`data/raw/phase-2-access-check.json`. Local raw evidence belongs in `data/raw/`; generated outputs belong in
 `data/processed/`. These locations, the OAuth token, and client credentials
 are ignored by Git and must not be committed.

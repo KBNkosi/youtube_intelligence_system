@@ -5,13 +5,14 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 SRC_DIR = PROJECT_ROOT / "src"
 
 VIDEO_ID = "SKPvAFXAOqU"
-START_DATE = "2023-01-01"
-END_DATE = "2026-08-20"
+START_DATE = "2026-06-03"
+END_DATE = "2026-08-23"
 
 CLIENT_SECRET_PATH = SRC_DIR / "client_secret.json"
 TOKEN_PATH = PROJECT_ROOT / "runtime" / "oauth" / "token.json"
 RAW_DATA_DIR = PROJECT_ROOT / "data" / "raw"
 PROCESSED_DATA_DIR = PROJECT_ROOT / "data" / "processed"
+PHASE_2_RESULT_PATH = RAW_DATA_DIR / "phase-2-access-check.json"
 
 
 def ensure_runtime_directories() -> None:
