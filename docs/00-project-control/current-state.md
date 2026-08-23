@@ -1,43 +1,57 @@
-# Current State
+# Project State
 
-## Current Stage
+## Current Phase
 
-Stage 1 — Problem & Hypothesis
+Technical Research / Data Feasibility
 
-## Status
+## Project Status
 
-🟡 In Progress
+The project is already underway. The current work is the single-video
+practical feasibility test described in the implementation plan:
 
-## Objective
+[Demonstrate Data Feasibility Plan](../../plan-demonstrateDataFeasibility.prompt.md)
 
-Define the precise hypothesis and validation criteria before beginning
-data/API feasibility research.
+## Current Objective
+
+Determine whether YouTube retention data can be reliably aligned with
+timestamped transcript data.
 
 ## Completed
 
-- Meeting with Danilo completed
-- Meeting transcript reviewed
-- Project context updated
-- SEM business context documented
-- Broader product vision separated from MVP
-- SEM asset-review opportunity separated from current project
-- Major technical/API uncertainties identified
+- Problem and hypothesis defined
+- Initial API research completed
+- Retention API identified
+- Transcript source identified
+- Initial feasibility script created
 
-## Current Work
+## Currently Testing
 
-- Define the precise hypothesis
-- Define what evidence would support/refute it
-- Define the minimum data required
-- Define what constitutes a useful insight
+- YouTube Analytics authentication
+- Retention data retrieval
+- Transcript retrieval
+- Retention/transcript alignment
 
-## Next Stage
+## Known Issues
 
-Stage 2 — Validation & Evidence Design
+- Current transcript library API required updating
+- Retention response structure still being verified
+- OAuth/access model still being verified
 
-## Blockers
+## Open Questions
 
-None
+- Is retention resolution sufficient for meaningful analysis?
+- Does SEM's Content Owner access support the required queries?
+- What historical retention data is actually available?
 
-## Last Updated
+## Next Action
 
-2026-08-19
+Begin Phase 1 of the [Demonstrate Data Feasibility Plan](../../plan-demonstrateDataFeasibility.prompt.md):
+make the experiment reproducible before testing live API access.
+
+## Do Not Work On Yet
+
+- Production architecture
+- Multi-channel ingestion
+- ML/prediction
+- Visual analysis
+- Recommendations

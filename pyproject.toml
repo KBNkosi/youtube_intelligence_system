@@ -1,0 +1,28 @@
+[project]
+name = "youtube-intelligence-system"
+version = "0.1.0"
+description = "Single-video YouTube retention and transcript feasibility experiment"
+readme = "README.md"
+authors = [
+    { name = "Nkosikenny", email = "kennybhekumuzi@gmail.com" }
+]
+requires-python = ">=3.13"
+dependencies = [
+    "google-api-python-client>=2.187.0",
+    "google-auth-httplib2>=0.2.0",
+    "google-auth-oauthlib>=1.2.2",
+    "pandas>=2.3.0",
+    "youtube-transcript-api>=1.2.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.0",
+]
+
+[project.scripts]
+youtube-intelligence-system = "youtube_intelligence_system:main"
+
+[build-system]
+requires = ["uv_build>=0.12.3,<0.13.0"]
+build-backend = "uv_build"
